@@ -1,3 +1,9 @@
+Bodged to work on a Jetson TX2.
+Renamed package to mpu9255 to stop catkin complaining.
+
+roslaunch mpu9255 imu.launch
+
+
 ROS MPU9255 Node
 ================
 

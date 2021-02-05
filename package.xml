@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>MPU9255</name>
+  <name>mpu9255</name>
   <version>0.0.0</version>
-  <description>The MPU9255 package</description>
+  <description>The mpu9255 package</description>
 
   <maintainer email="mdleiton@espol.edu.ec">Mauricio Leiton</maintainer>
 

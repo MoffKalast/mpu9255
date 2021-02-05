@@ -1,11 +1,73 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <wiringPi.h>
-#include <wiringPiI2C.h>
+#include <stdlib.h>
+#include <err.h>
+#include <errno.h>
+
+#include <linux/types.h>
+#include <linux/i2c.h>
+#include <linux/i2c-dev.h>
+#include <string>
+#include "std_msgs/String.h"
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include "ros/ros.h"
 #include "sensor_msgs/Imu.h"
 #include <sstream>
 #include "sensor_msgs/MagneticField.h"
+
+using namespace std;
+
+//string i2cDeviceName_0 = "/dev/i2c-0";
+string i2cDeviceName_1 = "/dev/i2c-1";
+//int file_i0;
+int file_i1;
+
+static inline __s32 i2c_smbus_access(int file, char read_write, __u8 command, int size, union i2c_smbus_data *data)
+{
+	struct i2c_smbus_ioctl_data args;
+
+	args.read_write = read_write;
+	args.command = command;
+	args.size = size;
+	args.data = data;
+	return ioctl(file, I2C_SMBUS, &args);
+}
+
+static inline __s32 i2c_smbus_read_byte_data(int file, __u8 command)
+{
+	union i2c_smbus_data data;
+	if (i2c_smbus_access(file, I2C_SMBUS_READ, command,
+		I2C_SMBUS_BYTE_DATA, &data))
+		return -1;
+	else
+		return 0x0FF & data.byte;
+}
+
+uint8_t i2c_read(uint8_t reg)
+{
+	uint8_t addr = 0x68;
+	int rc;
+	uint8_t read_back;
+
+	rc = ioctl(file_i1, I2C_SLAVE, addr); // Sets the device address
+	if (rc < 0)
+	{
+		ROS_INFO("ERROR - couldn't set device address");
+		return false;
+	}
+
+	//err(errno, "Tried to set device address '0x%02x'", addr);
+
+	// Actually perform the write and then read back immediately
+	read_back = i2c_smbus_read_byte_data(file_i1, reg);
+	//ROS_INFO("read_back = 0x%x", read_back);
+	
+	return read_back;
+}
 
 int main(int argc, char **argv){
 
@@ -14,15 +76,12 @@ int main(int argc, char **argv){
   ros::NodeHandle n;
   ros::Publisher pub_imu = n.advertise<sensor_msgs::Imu>("imu/data_raw", 2);
   ros::Publisher pub_mag = n.advertise<sensor_msgs::MagneticField>("imu/mag", 2);
-  
-	int fd; 
-  wiringPiSetupSys();
-  fd = wiringPiI2CSetup(0x68);
-	
-	if (fd == -1) {
-    printf("no i2c device found\n");
-    return -1;
-	}
+
+	// I2C
+	file_i1 = open(i2cDeviceName_1.c_str(), O_RDWR);
+	if (file_i1 < 0)
+		ROS_INFO("ERROR - i2c 0 file not open!");
+ 
   int16_t InBuffer[9] = {0}; 
   static int32_t OutBuffer[3] = {0};
 
@@ -40,27 +99,27 @@ int main(int argc, char **argv){
     float conversion_acce = 9.8/16384.0f;
 
     //datos acelerómetro
-    InBuffer[0]=  (wiringPiI2CReadReg8 (fd, 0x3B)<<8)|wiringPiI2CReadReg8 (fd, 0x3C);
-    InBuffer[1]=  (wiringPiI2CReadReg8 (fd, 0x3D)<<8)|wiringPiI2CReadReg8 (fd, 0x3E);
-    InBuffer[2]=  (wiringPiI2CReadReg8 (fd, 0x3F)<<8)|wiringPiI2CReadReg8 (fd, 0x40);   
+    InBuffer[0]=  (i2c_read(0x3B)<<8)|i2c_read(0x3C);
+    InBuffer[1]=  (i2c_read(0x3D)<<8)|i2c_read(0x3E);
+    InBuffer[2]=  (i2c_read(0x3F)<<8)|i2c_read(0x40);   
     
     data_imu.linear_acceleration.x = InBuffer[0]*conversion_acce;
     data_imu.linear_acceleration.y = InBuffer[1]*conversion_acce;
     data_imu.linear_acceleration.z = InBuffer[2]*conversion_acce;
 
      //datos giroscopio
-    InBuffer[3]=  (wiringPiI2CReadReg8 (fd, 0x43)<<8)|wiringPiI2CReadReg8 (fd, 0x44);
-    InBuffer[4]=  (wiringPiI2CReadReg8 (fd, 0x45)<<8)|wiringPiI2CReadReg8 (fd, 0x46);
-    InBuffer[5]=  (wiringPiI2CReadReg8 (fd, 0x47)<<8)|wiringPiI2CReadReg8 (fd, 0x48); 
+    InBuffer[3]=  (i2c_read(0x43)<<8)|i2c_read(0x44);
+    InBuffer[4]=  (i2c_read(0x45)<<8)|i2c_read(0x46);
+    InBuffer[5]=  (i2c_read(0x47)<<8)|i2c_read(0x48); 
 
     data_imu.angular_velocity.x = InBuffer[3]*conversion_gyro;
     data_imu.angular_velocity.y = InBuffer[4]*conversion_gyro;
     data_imu.angular_velocity.z = InBuffer[5]*conversion_gyro; 
 
     //datos magnetómetro
-    InBuffer[6]=  (wiringPiI2CReadReg8 (fd, 0x04)<<8)|wiringPiI2CReadReg8 (fd, 0x03);
-    InBuffer[7]=  (wiringPiI2CReadReg8 (fd, 0x06)<<8)|wiringPiI2CReadReg8 (fd, 0x05);
-    InBuffer[8]=  (wiringPiI2CReadReg8 (fd, 0x08)<<8)|wiringPiI2CReadReg8 (fd, 0x07);
+    InBuffer[6]=  (i2c_read(0x04)<<8)|i2c_read(0x03);
+    InBuffer[7]=  (i2c_read(0x06)<<8)|i2c_read(0x05);
+    InBuffer[8]=  (i2c_read(0x08)<<8)|i2c_read(0x07);
     
     data_mag.magnetic_field.x = InBuffer[6];
     data_mag.magnetic_field.y = InBuffer[7];
@@ -74,3 +133,5 @@ int main(int argc, char **argv){
     }
   return 0;
  }
+ 
+
