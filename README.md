@@ -1,7 +1,16 @@
-Bodged to work on a Jetson TX2.
+Bodged the I2C to work on a Jetson TX2.
 Renamed package to mpu9255 to stop catkin complaining.
 
+The original code magnetomter reads did not work and turned out have to read them from a separate I2C device address, plus set the I2C pass through bit on init.
+The setup register writes posted here made it work. Thanks :)
+https://stackoverflow.com/questions/36242308/arduino-sensor-10dof-mpu9255-cannot-fetch-magnetometer-data
+
+Also Magnetometer data published was raw, so multiplied by 0.15 to give Magnetic Flux density in uT, as per page 50 - Table 4 in the "MPU-9255-Register-Map.pdf"
+
 roslaunch mpu9255 imu.launch
+
+rostopic echo /imu/data_raw	
+rostopic echo /imu/mag
 
 
 ROS MPU9255 Node
