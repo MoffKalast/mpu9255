@@ -10,6 +10,7 @@ Also Magnetometer data published was raw, so multiplied by 0.15 to give Magnetic
 roslaunch mpu9255 imu.launch
 
 rostopic echo /imu/data_raw	
+
 rostopic echo /imu/mag
 
 
