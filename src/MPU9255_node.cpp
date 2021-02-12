@@ -134,6 +134,9 @@ int main(int argc, char **argv){
 	// Request first magnetometer single measurement
 	i2c_write(MAG_ADDRESS,0x0A,0x01);
 
+    float conversion_gyro = 3.1415/(180.0*32.8f);
+    float conversion_acce = 9.8/16384.0f;
+	float conversion_magno = 0.15;
  
   int16_t InBuffer[9] = {0}; 
   static int32_t OutBuffer[3] = {0};
@@ -147,10 +150,6 @@ int main(int argc, char **argv){
     data_mag.header.stamp = ros::Time::now();
     data_imu.header.stamp = data_mag.header.stamp;
     data_imu.header.frame_id = "/imu_link";
-
-    float conversion_gyro = 3.1415/(180.0*32.8f);
-    float conversion_acce = 9.8/16384.0f;
-	float conversion_magno = 0.15;
 
     //datos acelerómetro
     InBuffer[0]=  (i2c_read(MPU9250_ADDRESS, 0x3B)<<8)|i2c_read(MPU9250_ADDRESS, 0x3C);
