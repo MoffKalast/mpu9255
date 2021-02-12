@@ -1,4 +1,3 @@
-Bodged the I2C to work on a Jetson TX2.
 Renamed package to mpu9255 to stop catkin complaining.
 
 The original code magnetomter reads did not work and turned out have to read them from a separate I2C device address, plus set the I2C pass through bit on init.
