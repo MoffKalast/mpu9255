@@ -140,6 +140,8 @@ int main(int argc, char **argv){
  
   int16_t InBuffer[9] = {0}; 
   static int32_t OutBuffer[3] = {0};
+  
+  ros::Rate loop_rate(25); 
 
   while (ros::ok()){
     //http://docs.ros.org/api/sensor_msgs/html/msg/Imu.html 
@@ -186,6 +188,7 @@ int main(int argc, char **argv){
     pub_mag.publish(data_mag);
 
     ros::spinOnce();
+	loop_rate.sleep();
     }
   return 0;
  }
