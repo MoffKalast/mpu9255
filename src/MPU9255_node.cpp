@@ -123,10 +123,10 @@ int main(int argc, char **argv){
 		ROS_INFO("ERROR - i2c 0 file not open!");
 		
 	// Configure gyroscope range
-	i2c_write(MPU9250_ADDRESS,27,GYRO_FULL_SCALE_2000_DPS);
+	//i2c_write(MPU9250_ADDRESS,27,GYRO_FULL_SCALE_2000_DPS);
 
 	// Configure accelerometers range
-	i2c_write(MPU9250_ADDRESS,28,ACC_FULL_SCALE_16_G);
+	//i2c_write(MPU9250_ADDRESS,28,ACC_FULL_SCALE_16_G);
 
 	// Set by pass mode for the magnetometers
 	i2c_write(MPU9250_ADDRESS,0x37,0x02);

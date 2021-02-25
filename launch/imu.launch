@@ -8,7 +8,8 @@
 		<param name="do_adaptive_gain" value="true"/>
 		<param name="gain_acc" value="0.01"/>
 		<param name="gain_mag" value="0.01"/>
- 		<param name="publish_tf"    value="true"/>
+ 		<param name="publish_tf"    value="false"/> <!-- Only use this for debug! -->
+	<!--	<remap from="/imu/data_raw" to="/camera/imu" /> -->
 	</node>
 
 </launch>
