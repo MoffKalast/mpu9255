@@ -123,20 +123,22 @@ int main(int argc, char **argv){
 		ROS_INFO("ERROR - i2c 0 file not open!");
 		
 	// Configure gyroscope range
-	//i2c_write(MPU9250_ADDRESS,27,GYRO_FULL_SCALE_2000_DPS);
+	// default is - GYRO_FULL_SCALE_250_DPS
+	i2c_write(MPU9250_ADDRESS,27,GYRO_FULL_SCALE_1000_DPS);
 
 	// Configure accelerometers range
-	//i2c_write(MPU9250_ADDRESS,28,ACC_FULL_SCALE_16_G);
+	// default is - ACC_FULL_SCALE_2_G
+	i2c_write(MPU9250_ADDRESS,28,ACC_FULL_SCALE_2_G);
 
-	// Set by pass mode for the magnetometers
+	// Set I2C bypass mode for the magnetometer
 	i2c_write(MPU9250_ADDRESS,0x37,0x02);
 
 	// Request first magnetometer single measurement
 	i2c_write(MAG_ADDRESS,0x0A,0x01);
 
-    float conversion_gyro = 3.1415/(180.0*32.8f);
+    float conversion_gyro = 3.1415/(180.0*32.8f);  // From deg/s to rad/s. Then 32.8 conststant for 100DPS
     float conversion_acce = 9.8/16384.0f;
-	float conversion_magno = 0.15;
+	float conversion_magno = 0.0000006;  // 0.6 uT / LSB  - why did you set 0.15 before?
  
   int16_t InBuffer[9] = {0}; 
   static int32_t OutBuffer[3] = {0};
@@ -151,24 +153,26 @@ int main(int argc, char **argv){
 
     data_mag.header.stamp = ros::Time::now();
     data_imu.header.stamp = data_mag.header.stamp;
-    data_imu.header.frame_id = "imu_link";
+    data_imu.header.frame_id = "imu_link_ned";
 
     //datos acelerómetro
     InBuffer[0]=  (i2c_read(MPU9250_ADDRESS, 0x3B)<<8)|i2c_read(MPU9250_ADDRESS, 0x3C);
     InBuffer[1]=  (i2c_read(MPU9250_ADDRESS, 0x3D)<<8)|i2c_read(MPU9250_ADDRESS, 0x3E);
     InBuffer[2]=  (i2c_read(MPU9250_ADDRESS, 0x3F)<<8)|i2c_read(MPU9250_ADDRESS, 0x40);   
     
-    data_imu.linear_acceleration.x = InBuffer[0]*conversion_acce;
-    data_imu.linear_acceleration.y = InBuffer[1]*conversion_acce;
+	// Swap X and Y axis and correct polarity so to align with magnetometer axis
+    data_imu.linear_acceleration.x = -InBuffer[1]*conversion_acce;
+    data_imu.linear_acceleration.y = InBuffer[0]*conversion_acce;
     data_imu.linear_acceleration.z = InBuffer[2]*conversion_acce;
 
-     //datos giroscopio
+    //datos giroscopio
     InBuffer[3]=  (i2c_read(MPU9250_ADDRESS, 0x43)<<8)|i2c_read(MPU9250_ADDRESS, 0x44);
     InBuffer[4]=  (i2c_read(MPU9250_ADDRESS, 0x45)<<8)|i2c_read(MPU9250_ADDRESS, 0x46);
     InBuffer[5]=  (i2c_read(MPU9250_ADDRESS, 0x47)<<8)|i2c_read(MPU9250_ADDRESS, 0x48); 
 
-    data_imu.angular_velocity.x = InBuffer[3]*conversion_gyro;
-    data_imu.angular_velocity.y = InBuffer[4]*conversion_gyro;
+	// Swap X and Y axis and correct polarity so to align with magnetometer axis
+    data_imu.angular_velocity.x = -InBuffer[4]*conversion_gyro;
+    data_imu.angular_velocity.y = -InBuffer[3]*conversion_gyro;
     data_imu.angular_velocity.z = InBuffer[5]*conversion_gyro; 
 
     //datos magnetómetro
