@@ -6,7 +6,7 @@
 		<param name="world_frame" value="ned"/>
 		<param name="fixed_frame" value="base_link"/>
 		<param name="use_magnetic_field_msg" value="false"/>
- 		<param name="publish_tf"    value="true"/>  <!-- Only use this for debug! -->
+ 		<param name="publish_tf"    value="false"/>  <!-- Only use this for debug! -->
 		<param name="remove_gravity_vector" value="false"/>
 	</node>
 

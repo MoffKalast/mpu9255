@@ -173,7 +173,7 @@ int main(int argc, char **argv){
 	// Swap X and Y axis and correct polarity so to align with magnetometer axis
     data_imu.angular_velocity.x = -InBuffer[4]*conversion_gyro;
     data_imu.angular_velocity.y = -InBuffer[3]*conversion_gyro;
-    data_imu.angular_velocity.z = InBuffer[5]*conversion_gyro; 
+    data_imu.angular_velocity.z = -InBuffer[5]*conversion_gyro; 
 
     //datos magnetómetro
     InBuffer[6]=  (i2c_read(MAG_ADDRESS, 0x04)<<8)|i2c_read(MAG_ADDRESS, 0x03);
