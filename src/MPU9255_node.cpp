@@ -113,7 +113,17 @@ int main(int argc, char **argv){
 
   ros::init(argc, argv, "IMU_pub");
   
-  ros::NodeHandle n;
+  ros::NodeHandle n(""), nh_param("~");
+  
+  bool print_min_max_mag, print_min_max_acc;
+  nh_param.param("print_min_max_mag", print_min_max_mag, false);
+   nh_param.param("print_min_max_acc", print_min_max_acc, false);
+   
+   float acc_bias_x, acc_bias_y, acc_bias_z;
+   nh_param.param("acc_bias_x", acc_bias_x, (float)0.0);
+   nh_param.param("acc_bias_y", acc_bias_y, (float)0.0);
+   nh_param.param("acc_bias_z", acc_bias_z, (float)0.0);
+   
   ros::Publisher pub_imu = n.advertise<sensor_msgs::Imu>("imu/data_raw", 2);
   ros::Publisher pub_mag = n.advertise<sensor_msgs::MagneticField>("imu/mag", 2);
 
@@ -140,8 +150,13 @@ int main(int argc, char **argv){
     float conversion_acce = 9.8/16384.0f;
 	float conversion_magno = 0.0000006;  // 0.6 uT / LSB  - why did you set 0.15 before?
  
+	float min_mag[3] = {0};
+	float max_mag[3] = {0};
+	float min_acc[3] = {0};
+	float max_acc[3] = {0};
+ 
   int16_t InBuffer[9] = {0}; 
-  static int32_t OutBuffer[3] = {0};
+  float OutBuffer[9] = {0};
   
   ros::Rate loop_rate(25); 
 
@@ -160,36 +175,84 @@ int main(int argc, char **argv){
     InBuffer[1]=  (i2c_read(MPU9250_ADDRESS, 0x3D)<<8)|i2c_read(MPU9250_ADDRESS, 0x3E);
     InBuffer[2]=  (i2c_read(MPU9250_ADDRESS, 0x3F)<<8)|i2c_read(MPU9250_ADDRESS, 0x40);   
     
-	// Swap X and Y axis and correct polarity so to align with magnetometer axis
-    data_imu.linear_acceleration.x = -InBuffer[1]*conversion_acce;
-    data_imu.linear_acceleration.y = InBuffer[0]*conversion_acce;
-    data_imu.linear_acceleration.z = InBuffer[2]*conversion_acce;
-
-    //datos giroscopio
+	//datos giroscopio
     InBuffer[3]=  (i2c_read(MPU9250_ADDRESS, 0x43)<<8)|i2c_read(MPU9250_ADDRESS, 0x44);
     InBuffer[4]=  (i2c_read(MPU9250_ADDRESS, 0x45)<<8)|i2c_read(MPU9250_ADDRESS, 0x46);
     InBuffer[5]=  (i2c_read(MPU9250_ADDRESS, 0x47)<<8)|i2c_read(MPU9250_ADDRESS, 0x48); 
-
-	// Swap X and Y axis and correct polarity so to align with magnetometer axis
-    data_imu.angular_velocity.x = -InBuffer[4]*conversion_gyro;
-    data_imu.angular_velocity.y = -InBuffer[3]*conversion_gyro;
-    data_imu.angular_velocity.z = -InBuffer[5]*conversion_gyro; 
-
-    //datos magnetómetro
+	
+	//datos magnetómetro
     InBuffer[6]=  (i2c_read(MAG_ADDRESS, 0x04)<<8)|i2c_read(MAG_ADDRESS, 0x03);
     InBuffer[7]=  (i2c_read(MAG_ADDRESS, 0x06)<<8)|i2c_read(MAG_ADDRESS, 0x05);
     InBuffer[8]=  (i2c_read(MAG_ADDRESS, 0x08)<<8)|i2c_read(MAG_ADDRESS, 0x07);
 	
 	// Request magnetometer single measurement
 	i2c_write(MAG_ADDRESS, 0x0A, 0x01);
-    
-    data_mag.magnetic_field.x = InBuffer[6]*conversion_magno;
-    data_mag.magnetic_field.y = InBuffer[7]*conversion_magno;
-    data_mag.magnetic_field.z = InBuffer[8]*conversion_magno;
+	
+	// Swap X and Y axis and correct polarity so to align with magnetometer axis
+	OutBuffer[0] = (-InBuffer[1]*conversion_acce) + acc_bias_x;
+	OutBuffer[1] = (InBuffer[0]*conversion_acce) + acc_bias_y;
+	OutBuffer[2] = (InBuffer[2]*conversion_acce) + acc_bias_z;
+	
+	// Swap X and Y axis and correct polarity so to align with magnetometer axis
+	OutBuffer[3] = -InBuffer[4]*conversion_gyro;
+	OutBuffer[4] = -InBuffer[3]*conversion_gyro;
+	OutBuffer[5] = -InBuffer[5]*conversion_gyro;
+	
+	// Mag is NED orientation
+	OutBuffer[6] = InBuffer[6]*conversion_magno;
+	OutBuffer[7] = InBuffer[7]*conversion_magno;
+	OutBuffer[8] = InBuffer[8]*conversion_magno;
+	
+    data_imu.linear_acceleration.x = OutBuffer[0];
+    data_imu.linear_acceleration.y = OutBuffer[1];
+    data_imu.linear_acceleration.z = OutBuffer[2];
+
+    data_imu.angular_velocity.x = OutBuffer[3];
+    data_imu.angular_velocity.y = OutBuffer[4];
+    data_imu.angular_velocity.z = OutBuffer[5];
+
+    data_mag.magnetic_field.x = OutBuffer[6];
+    data_mag.magnetic_field.y = OutBuffer[7];
+    data_mag.magnetic_field.z = OutBuffer[8];
     
     pub_imu.publish(data_imu);
-
     pub_mag.publish(data_mag);
+	
+	if (print_min_max_mag)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			int out_buf_num = i + 6;
+			
+			if (min_mag[i] > OutBuffer[out_buf_num])
+				min_mag[i] = OutBuffer[out_buf_num];
+				
+			if (max_mag[i] < OutBuffer[out_buf_num])
+				max_mag[i] = OutBuffer[out_buf_num];	
+		}
+		
+		ROS_INFO("X-Mag - Min = %f, Max = %f, Average = %f", min_mag[0], max_mag[0], (min_mag[0] + max_mag[0]) / 2);
+		ROS_INFO("Y-Mag - Min = %f, Max = %f, Average = %f", min_mag[1], max_mag[1], (min_mag[1] + max_mag[1]) / 2);
+		ROS_INFO("Z-Mag - Min = %f, Max = %f, Average = %f", min_mag[2], max_mag[2], (min_mag[2] + max_mag[2]) / 2);
+		ROS_INFO(" ");
+	}
+	
+	if (print_min_max_acc)
+	{
+		for (int i = 0; i < 3; i++)
+		{	
+			if (min_acc[i] > OutBuffer[i])
+				min_acc[i] = OutBuffer[i];
+				
+			if (max_acc[i] < OutBuffer[i])
+				max_acc[i] = OutBuffer[i];	
+		}
+		
+		ROS_INFO("X-Acc - Min = %f, Max = %f, Average = %f", min_acc[0], max_acc[0], (min_acc[0] + max_acc[0]) / 2);
+		ROS_INFO("Y-Acc - Min = %f, Max = %f, Average = %f", min_acc[1], max_acc[1], (min_acc[1] + max_acc[1]) / 2);
+		ROS_INFO("Z-Acc - Min = %f, Max = %f, Average = %f", min_acc[2], max_acc[2], (min_acc[2] + max_acc[2]) / 2);
+		ROS_INFO(" ");
+	}
 
     ros::spinOnce();
 	loop_rate.sleep();
