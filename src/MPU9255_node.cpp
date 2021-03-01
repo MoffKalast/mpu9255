@@ -115,9 +115,10 @@ int main(int argc, char **argv){
   
   ros::NodeHandle n(""), nh_param("~");
   
-  bool print_min_max_mag, print_min_max_acc;
+  bool print_min_max_mag, print_min_max_acc, print_rolling_mean_acc;
   nh_param.param("print_min_max_mag", print_min_max_mag, false);
    nh_param.param("print_min_max_acc", print_min_max_acc, false);
+   nh_param.param("print_rolling_mean_acc", print_rolling_mean_acc, false);
    
    double imu_covar, mag_covar;
    nh_param.param("imu_covar", imu_covar, 0.01);
@@ -163,7 +164,10 @@ int main(int argc, char **argv){
 	double max_mag[3] = {0};
 	double min_acc[3] = {0};
 	double max_acc[3] = {0};
- 
+	
+	bool roll_mean_acc_ready = false;
+	double roll_mean_acc[3] = {0};
+
   int16_t InBuffer[9] = {0}; 
   float OutBuffer[9] = {0};
   
@@ -267,7 +271,28 @@ int main(int argc, char **argv){
 		ROS_INFO("Z-Acc - Min = %f, Max = %f, Average = %f", min_acc[2], max_acc[2], (min_acc[2] + max_acc[2]) / 2);
 		ROS_INFO(" ");
 	}
-
+	
+	if (print_rolling_mean_acc)
+	{
+		if (roll_mean_acc_ready)
+		{
+			for (int i = 0; i < 3; i++)
+				roll_mean_acc[i] = (roll_mean_acc[i] + OutBuffer[i]) / 2;
+				
+			ROS_INFO("X-Acc - Mean = %f", roll_mean_acc[0]);
+			ROS_INFO("Y-Acc - Mean = %f", roll_mean_acc[1]);
+			ROS_INFO("Z-Acc - Mean = %f", roll_mean_acc[2]);
+			ROS_INFO(" ");
+		}
+		else
+		{
+			for (int i = 0; i < 3; i++)
+				roll_mean_acc[i] = OutBuffer[i];
+				
+			roll_mean_acc_ready = true;
+		}
+	}
+ 
     ros::spinOnce();
 	loop_rate.sleep();
     }
