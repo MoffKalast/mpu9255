@@ -119,10 +119,19 @@ int main(int argc, char **argv){
   nh_param.param("print_min_max_mag", print_min_max_mag, false);
    nh_param.param("print_min_max_acc", print_min_max_acc, false);
    
-   float acc_bias_x, acc_bias_y, acc_bias_z;
-   nh_param.param("acc_bias_x", acc_bias_x, (float)0.0);
-   nh_param.param("acc_bias_y", acc_bias_y, (float)0.0);
-   nh_param.param("acc_bias_z", acc_bias_z, (float)0.0);
+   double imu_covar, mag_covar;
+   nh_param.param("imu_covar", imu_covar, 0.01);
+   nh_param.param("mag_covar", mag_covar, 0.01);
+   
+   double acc_bias_x, acc_bias_y, acc_bias_z;
+   nh_param.param("acc_bias_x", acc_bias_x, 0.0);
+   nh_param.param("acc_bias_y", acc_bias_y, 0.0);
+   nh_param.param("acc_bias_z", acc_bias_z, 0.0);
+   
+      double gyr_bias_x, gyr_bias_y, gyr_bias_z;
+   nh_param.param("gyr_bias_x", gyr_bias_x, 0.0);
+   nh_param.param("gyr_bias_y", gyr_bias_y, 0.0);
+   nh_param.param("gyr_bias_z", gyr_bias_z, 0.0);
    
   ros::Publisher pub_imu = n.advertise<sensor_msgs::Imu>("imu/data_raw", 2);
   ros::Publisher pub_mag = n.advertise<sensor_msgs::MagneticField>("imu/mag", 2);
@@ -138,7 +147,7 @@ int main(int argc, char **argv){
 
 	// Configure accelerometers range
 	// default is - ACC_FULL_SCALE_2_G
-	i2c_write(MPU9250_ADDRESS,28,ACC_FULL_SCALE_2_G);
+	i2c_write(MPU9250_ADDRESS,28,ACC_FULL_SCALE_16_G); //ACC_FULL_SCALE_2_G
 
 	// Set I2C bypass mode for the magnetometer
 	i2c_write(MPU9250_ADDRESS,0x37,0x02);
@@ -146,14 +155,14 @@ int main(int argc, char **argv){
 	// Request first magnetometer single measurement
 	i2c_write(MAG_ADDRESS,0x0A,0x01);
 
-    float conversion_gyro = 3.1415/(180.0*32.8f);  // From deg/s to rad/s. Then 32.8 conststant for 100DPS
-    float conversion_acce = 9.8/16384.0f;
-	float conversion_magno = 0.0000006;  // 0.6 uT / LSB  - why did you set 0.15 before?
+    double conversion_gyro = 3.1415/(180.0*32.8f);  // From deg/s to rad/s. Then 32.8 conststant for 100DPS
+    double conversion_acce = 9.80665/2048.0f;  //9.8/16384.0f;
+	double conversion_magno = 0.0000006;  // 0.6 uT / LSB  - why did you set 0.15 before?
  
-	float min_mag[3] = {0};
-	float max_mag[3] = {0};
-	float min_acc[3] = {0};
-	float max_acc[3] = {0};
+	double min_mag[3] = {0};
+	double max_mag[3] = {0};
+	double min_acc[3] = {0};
+	double max_acc[3] = {0};
  
   int16_t InBuffer[9] = {0}; 
   float OutBuffer[9] = {0};
@@ -168,7 +177,7 @@ int main(int argc, char **argv){
 
     data_mag.header.stamp = ros::Time::now();
     data_imu.header.stamp = data_mag.header.stamp;
-    data_imu.header.frame_id = "imu_link_ned";
+    data_imu.header.frame_id = "imu_link";
 
     //datos acelerómetro
     InBuffer[0]=  (i2c_read(MPU9250_ADDRESS, 0x3B)<<8)|i2c_read(MPU9250_ADDRESS, 0x3C);
@@ -189,19 +198,19 @@ int main(int argc, char **argv){
 	i2c_write(MAG_ADDRESS, 0x0A, 0x01);
 	
 	// Swap X and Y axis and correct polarity so to align with magnetometer axis
-	OutBuffer[0] = (-InBuffer[1]*conversion_acce) + acc_bias_x;
-	OutBuffer[1] = (InBuffer[0]*conversion_acce) + acc_bias_y;
+	OutBuffer[0] = (InBuffer[0]*conversion_acce) + acc_bias_x;
+	OutBuffer[1] = (InBuffer[1]*conversion_acce) + acc_bias_y;
 	OutBuffer[2] = (InBuffer[2]*conversion_acce) + acc_bias_z;
-	
+
 	// Swap X and Y axis and correct polarity so to align with magnetometer axis
-	OutBuffer[3] = -InBuffer[4]*conversion_gyro;
-	OutBuffer[4] = -InBuffer[3]*conversion_gyro;
-	OutBuffer[5] = -InBuffer[5]*conversion_gyro;
+	OutBuffer[3] = (InBuffer[3]*conversion_gyro) + gyr_bias_x;
+	OutBuffer[4] = (InBuffer[4]*conversion_gyro) + gyr_bias_y;
+	OutBuffer[5] = (InBuffer[5]*conversion_gyro) + gyr_bias_z;
 	
-	// Mag is NED orientation
-	OutBuffer[6] = InBuffer[6]*conversion_magno;
-	OutBuffer[7] = InBuffer[7]*conversion_magno;
-	OutBuffer[8] = InBuffer[8]*conversion_magno;
+	// Mag is NED orientation - convert to ENU, swap XY and invert Z
+	OutBuffer[6] = InBuffer[7]*conversion_magno;
+	OutBuffer[7] = InBuffer[6]*conversion_magno;
+	OutBuffer[8] = -InBuffer[8]*conversion_magno;
 	
     data_imu.linear_acceleration.x = OutBuffer[0];
     data_imu.linear_acceleration.y = OutBuffer[1];
@@ -210,10 +219,15 @@ int main(int argc, char **argv){
     data_imu.angular_velocity.x = OutBuffer[3];
     data_imu.angular_velocity.y = OutBuffer[4];
     data_imu.angular_velocity.z = OutBuffer[5];
-
+	
+	data_imu.orientation_covariance = {-1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+	data_imu.linear_acceleration_covariance = {imu_covar, 0.0f, 0.0f, 0.0f, imu_covar, 0.0f, 0.0f, 0.0f, imu_covar};
+	data_imu.angular_velocity_covariance = {imu_covar, 0.0f, 0.0f, 0.0f, imu_covar, 0.0f, 0.0f, 0.0f, imu_covar};
+	
     data_mag.magnetic_field.x = OutBuffer[6];
     data_mag.magnetic_field.y = OutBuffer[7];
     data_mag.magnetic_field.z = OutBuffer[8];
+	data_mag.magnetic_field_covariance = {mag_covar, 0.0f, 0.0f, 0.0f, mag_covar, 0.0f, 0.0f, 0.0f, mag_covar};
     
     pub_imu.publish(data_imu);
     pub_mag.publish(data_mag);
@@ -260,4 +274,3 @@ int main(int argc, char **argv){
   return 0;
  }
  
-
