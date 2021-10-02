@@ -115,10 +115,11 @@ int main(int argc, char **argv){
   
   ros::NodeHandle n(""), nh_param("~");
   
-  bool print_min_max_mag, print_min_max_acc, print_rolling_mean_acc;
+  bool print_min_max_mag, print_min_max_acc, print_rolling_mean_acc, print_min_max_gyro;
   nh_param.param("print_min_max_mag", print_min_max_mag, false);
    nh_param.param("print_min_max_acc", print_min_max_acc, false);
    nh_param.param("print_rolling_mean_acc", print_rolling_mean_acc, false);
+   nh_param.param("print_min_max_gyro", print_min_max_gyro, false);
    
    double imu_covar, mag_covar;
    nh_param.param("imu_covar", imu_covar, 0.01);
@@ -162,7 +163,9 @@ int main(int argc, char **argv){
  
 	double min_mag[3] = {0};
 	double max_mag[3] = {0};
-	double min_acc[3] = {0};
+	double min_gyro[3] = {0};
+	double max_gyro[3] = {0};
+	double min_acc[3] = {0,0,9.8};
 	double max_acc[3] = {0};
 	
 	bool roll_mean_acc_ready = false;
@@ -255,8 +258,34 @@ int main(int argc, char **argv){
 		ROS_INFO(" ");
 	}
 	
+	if (print_min_max_gyro)
+	{
+		float gyro_av_print[3];
+		
+		for (int i = 0; i < 3; i++)
+		{
+			int out_buf_num = i + 3;
+			
+			if (min_gyro[i] > OutBuffer[out_buf_num])
+				min_gyro[i] = OutBuffer[out_buf_num];
+				
+			if (max_gyro[i] < OutBuffer[out_buf_num])
+				max_gyro[i] = OutBuffer[out_buf_num];	
+				
+			gyro_av_print[i] = (min_gyro[i] + max_gyro[i]) / 2;
+		}
+		
+		ROS_INFO("X-Gyro - Min = %f, Max = %f, Average = %f, Try Bias = %f", min_gyro[0], max_gyro[0], gyro_av_print[0], gyr_bias_x - gyro_av_print[0]);
+		ROS_INFO("Y-Gyro - Min = %f, Max = %f, Average = %f, Try Bias = %f", min_gyro[1], max_gyro[1], gyro_av_print[1], gyr_bias_y - gyro_av_print[1]);
+		ROS_INFO("Z-Gyro - Min = %f, Max = %f, Average = %f, Try Bias = %f", min_gyro[2], max_gyro[2], gyro_av_print[2], gyr_bias_z - gyro_av_print[2]);
+		ROS_INFO(" ");	
+		
+	}
+	
 	if (print_min_max_acc)
 	{
+		float acc_av_print[3];
+		
 		for (int i = 0; i < 3; i++)
 		{	
 			if (min_acc[i] > OutBuffer[i])
@@ -264,14 +293,16 @@ int main(int argc, char **argv){
 				
 			if (max_acc[i] < OutBuffer[i])
 				max_acc[i] = OutBuffer[i];	
+			
+			acc_av_print[i] = (min_acc[i] + max_acc[i]) / 2;
 		}
 		
-		ROS_INFO("X-Acc - Min = %f, Max = %f, Average = %f", min_acc[0], max_acc[0], (min_acc[0] + max_acc[0]) / 2);
-		ROS_INFO("Y-Acc - Min = %f, Max = %f, Average = %f", min_acc[1], max_acc[1], (min_acc[1] + max_acc[1]) / 2);
-		ROS_INFO("Z-Acc - Min = %f, Max = %f, Average = %f", min_acc[2], max_acc[2], (min_acc[2] + max_acc[2]) / 2);
+		ROS_INFO("X-Acc - Min = %f, Max = %f, Average = %f, Try Bias = %f", min_acc[0], max_acc[0], acc_av_print[0], acc_bias_x - acc_av_print[0]);
+		ROS_INFO("Y-Acc - Min = %f, Max = %f, Average = %f, Try Bias = %f", min_acc[1], max_acc[1], acc_av_print[1], acc_bias_y - acc_av_print[1]);
+		ROS_INFO("Z-Acc - Min = %f, Max = %f, Average = %f, Try Bias = %f", min_acc[2], max_acc[2], acc_av_print[2], acc_bias_z - (acc_av_print[2] - 9.8));
 		ROS_INFO(" ");
 	}
-	
+		
 	if (print_rolling_mean_acc)
 	{
 		if (roll_mean_acc_ready)
